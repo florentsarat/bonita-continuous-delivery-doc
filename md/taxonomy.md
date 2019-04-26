@@ -21,6 +21,7 @@
         * [Build a Living App repository](livingapp_build.md)
         * [Deploy Living App artifacts](livingapp_deploy.md)
         * [Build and deploy (Best Practices)](livingapp_build_and_deploy.md)
+        * [Deploy Living App artifacts to production](how_to_push_LA_to_prod.md)
     * [Use BCD with sensitive data encrypted](how_to_use_bcd_with_data_encrypted.md)
     * [Integrate BCD with Jenkins](jenkins_example.md)
 * [Troubleshooting guide](troubleshooting_guide.md)
