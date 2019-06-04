@@ -10,12 +10,34 @@ Deploying to a production environment (or any sensible environment) requires ext
 * [Deploy Living App artifacts](livingapp_deploy.md)
 * [Build and deploy (Best Practices)](livingapp_build_and_deploy.md)
 
+## Notion of projects
+
+There is no clear notion of multiple projects yet in Bonita, but the philosophy is already there and the approach will become clearer and clearer with each new version.
+As of today we could define a project as a set of artifacts that must work together to fulfill a business need. For instance a loan management project could be composed of several Living Applications, composed of several pages, using multiple REST API extensions and Processes.
+Another Health Care project coulb be composed of many processses in a single Living Application using many Custom Connectors.
+A development team may implement and maintain several projects concurrently. Having a clear organisation of the code and a Continuous Integration environment is a MUST to be successful.
+
+### First project
+
+For their first project, most of the teams develop all the artifacts in a single Studio project (previsouly named repository), i.e Git repository. While this is very convenient because you have everything in a single place, it also brings some inconsistencies when starting the 2nd project.
+Having everything in a single project makes it easy to update artifacts from Bonita Studio. Moreover when building on Continuous Integration (CI) servers, there is only one Git repository to clone and build.
+
+### 2nd project and onward
+
+When do you need to create a 2nd project? Well usually it is a matter of business case. If the same team is implementing a Helthcare application and a Loan Management application, it is easy to see that those applications should be having their own Bonita project (e.g. Git repo).
+The rule of thumb is: if the ressources do not share the same lifecycle (i.e. should be updated, versioned and deployed concurrently) they should probably be isolated into separate repos.
+
+Let's assume that the 2nd project is intended to be deployed on the same runtime as the first project. It appears that some ressources shall be shared by the two projects, such as the BDM definition, the organisation, the application Layouts and Themes, etc...
+It is usually a bad idea to duplicate code, so you should not duplicate artifacts accross several Bonita projects.
+
+We suggest, you have a project (git repo) with common artifacts and a project (git repo) per business project (e.g. Healthcare or Loan Management).
+
 ## Deploying on a test environment
 
 While testing, it is a good idea to always (or most of the time) start from an empty environment and re-install everything. That is the best way to ensure that what you are deploying is all you need to get to the desired state, that you are not relying on an external dependency without noticing it.
 In the current version of BCD, the deployment default policies are test oriented, meaning that by default existing artifacts will be removed and re-installed. *Note:* In future version of BCD we will probably change to be production friendly first. This would avoid some of the caveats you may face if you want to target a production environment for your deployment.
 
-
+### Deployment policy recommanded depends on targeted environment
 
 
 ## Deploying on a pre-production or production environment
@@ -33,25 +55,53 @@ Please ensure to follow the same procedure on your Pre-production environment an
 
 ### Deployment policy recommanded for production deployment
 
-Among all the **types of artifacts** that can be deployed (see [Deploy Living App artifacts](livingapp_deploy.md)) there are 3 caveats:
+Among all the **types of artifacts** that can be deployed (see [Deploy Living App artifacts](livingapp_deploy.md)) there are 4 caveats:
 
 * business data model and business data model access controls
-* organizations
+* organization
 * profiles
+* processes
 
-The business data model is not scoped to a particular project or application. So as long as you only have 1 project, there is no special difficulties, but when you hadeployment entry point is called an **Application Archive**. It consists of all artifacts to be deployed and an optional configuration file called **Deployment Descriptor**. This file describes which **Policy** should be applied while deploying each artifact.
+#### Business Data Model and access control
+The business data model is neither scoped to a particular project nor to an application, furthermore it should never be updated in a way that causes a breaking change. A breaking shange is a modification in the structure of the BDM that would break the execution of existing processes.
+ If you make such a breaking change, your process instances will never be able to recover the technical error. You will have no choice but to cancel all broken process instances then modify your process definition to follow the change and deploy the new version for your users. It is often better to make changes that are compatible with existing processes already in production, to allow same migration and if needed rollback to earlier version.
 
-::: danger
-Read carefully the deployment supported policies per artifact before deploying a living application on a final Production environment. Using the default policies may result in a clean of the whole Bonita runtime.
-:::
 
-### Application Archive structure
+#### Organization
+While it is possible to define an organization from Bonita Studio using an XML file, this should be considered a test organization. This approach has not been designed for defining a production grade Organization definition.
+So please this organization file small and for testing purpose.
 
-The Application Archive can be a directory or a zip file. It may contain a Deployment Descriptor in the form of a `deploy.json` file. If not provided, then a Deployment Descriptor is generated in-memory using the following rules:
-* the type of artifact is determined from the nature of each file
-* a [default policy](#supported-policies) is applied for each supported artifact to deploy
+The Organization file should probably ignored when deploying to a production environment.
+See * [LDAP Synchronizer](https://documentation.bonitasoft.com/bonita/${bonitaDocVersion}/ldap-synchronizer) if your organization can be imported from an LDAP directory.
 
-Here is an example of Application Archive structure:
+If you have to deploy an Organization from a file to your production environment you should use the policy: IGNORE_DUPLICATES. This way the users already existing in prodcution will not be modified (e.g. if the passord has been renewed it will be kept as it).
+As opposed to the default policy that would reset the user info to what is in the file.
+
+
+#### Profiles
+There is currently only one policy for Profiles: REPLACE_DUPLICATES.
+This policy is fine for tests environment as it will reset profiles information to what is in the file.
+But when deploying to a production environment, if you had already installed and configure the profile, it will be replace the profile definition by the information in the file, hence you will lose the extra configuration you may have done (e.g. assign profile to groups of users).
+As a result, users may lose their access to Living Applications until you restore the configuration.
+
+So it is recommanded not to deploy continuously the profiles definition. As part of your deployment make sure the profiles are installed the first time, then to not deploy them later on, or plan to reconfigure them.
+
+#### Processes
+The default policy is deleting existing processes and all their instances. Which is probably not suitable for production environment.
+
+We recommand to use the IGNORE_DUPLICATES policy as it only deploys a process when it does not already exist (same name and version)
+
+### Define the deployment policy for each artifacts
+
+The deployment entry point is called an **Application Archive**. It consists of all artifacts to be deployed and an optional configuration file called **Deployment Descriptor**. This file describes which **Policy** should be applied while deploying each artifact.
+
+The easiest way to configure the deployment is to have several deply.json file, one per targeted environment. Example deploy_test.json, deploy_initial_prod.json and deploy_update_prod.json.
+
+Once the project is built, unzip the Application archive and copy/move/rename the desired deployment descriptor (e.g. deploy_test.json) to deploy.json at the root of the extracted archive.
+
+
+### Example of an Application structure after extraction
+
 ```
 bonita-vacation-management-example
 ├── applications
@@ -75,19 +125,9 @@ bonita-vacation-management-example
     └── default_profile.xml
 ```
 
-::: warning
-**Note**: if you provide several artifacts for a resource which is supposed to be single (for instance Business Data Model, Organization), only one of the artifacts will be deployed. There is no guaranty about which file is kept so please avoid this situation to ensure deployment reproducibility.
-:::
+See the descriptor at the root of the folder is named *deploy.json*.
 
-### Deployment Descriptor file
-
-The Deployment Descriptor file must be a valid JSON file named **`deploy.json`** and it must be located at the root of the Application Archive.
-
-Each artifact to deploy must be defined with the following attributes:
-* `file`: (Mandatory) the relative path to the artifact in the Application Archive
-* `policy`: (Optional) the name of the policy to apply in case the same artifact is already present in the target Bonita platform. If omitted, then the [default policy](#supported-policies) of the artifact's type will be applied.
-
-**Example of Deployment Descriptor file**
+### Deploy.json file example for test
 ```json
 {
   "organization": {
@@ -107,10 +147,76 @@ Each artifact to deploy must be defined with the following attributes:
   "processes": [
     {
       "file": "processes/New Vacation Request--1.4.1.bar",
+      "policy": "REPLACE_DUPLICATES"
+    },
+    {
+      "file": "processes/Initiate Vacation Available--1.4.1.bar",
+      "policy": "REPLACE_DUPLICATES"
+    }
+  ],
+  "restAPIExtensions": [
+    {
+      "file": "extensions/tahitiRestApiExtension-1.0.0.zip",
+      "policy": "REPLACE_DUPLICATES"
+    }
+  ],
+  "pages": [
+    {
+      "file": "pages/page_ExampleVacationManagement.zip",
+      "policy": "REPLACE_DUPLICATES"
+    }
+  ],
+  "layouts": [
+    {
+      "file": "layouts/customLayout1.zip",
+      "policy": "REPLACE_DUPLICATES"
+    },
+    {
+      "file": "layouts/customLayout2.zip",
+      "policy": "REPLACE_DUPLICATES"
+    }
+  ],
+  "themes": [
+      {
+        "file": "themes/customTheme1.zip",
+        "policy": "REPLACE_DUPLICATES"
+      },
+      {
+        "file": "themes/customTheme2.zip",
+        "policy": "REPLACE_DUPLICATES"
+      }
+    ],
+  "applications": [
+    {
+      "file": "applications/Application_Data.xml",
+      "policy": "REPLACE_DUPLICATES"
+    }
+  ],
+  "businessDataModel": {
+    "file": "bdm/bdm.zip",
+    "policy": "REPLACE_DUPLICATES"
+  },
+  "bdmAccessControl": {
+    "file": "bdm/bdm-access-control.xml",
+    "policy": "REPLACE_DUPLICATES"
+  }
+}
+```
+
+In this example we decided to deploy a test organization, overwrite profiles and processes.
+
+### Deploy.json file example for production
+
+```json
+{
+  "processes": [
+    {
+      "file": "processes/New Vacation Request--1.4.1.bar",
       "policy": "IGNORE_DUPLICATES"
     },
     {
-      "file": "processes/Initiate Vacation Available--1.4.1.bar"
+      "file": "processes/Initiate Vacation Available--1.4.1.bar",
+      "policy": "IGNORE_DUPLICATES"
     }
   ],
   "restAPIExtensions": [
@@ -154,42 +260,11 @@ Each artifact to deploy must be defined with the following attributes:
 }
 ```
 
-### Supported Policies
-
-<div id="supported-policies">
-
-* Applications:
-  * `FAIL_ON_DUPLICATES`: deployment fails if the `Application` or `ApplicationPage` already exists
-  * `REPLACE_DUPLICATES`: **(default)** if the `Application` or `ApplicationPage` already exists, the existing one is deleted and the new one is deployed
-* Organization:
-  * `FAIL_ON_DUPLICATES`: if an item already exists, the deployment fails and is reverted to the previous state
-  * `IGNORE_DUPLICATES`: existing items are kept
-  * `MERGE_DUPLICATES`: **(default)** existing items in the current organization are updated to have the values of the item in the imported organization
-* Processes:
-  * `FAIL_ON_DUPLICATES`: if the process already exists (same `name` and `version`), the deployment fails
-  * `IGNORE_DUPLICATES`: only deploys a process when it does not already exist (same `name` and `version`)
-  * `REPLACE_DUPLICATES`: **(default)** if the process already exists (same `name` and `version`), the existing one is deleted and the new one is deployed. As a reminder, deleting a process means: disable the process, delete all related cases and delete the process
-
-The following artifacts are used with **implicit policies**. It means that you do not have to declare those policies in the Deployment Descriptor file. There is no other policy available for those artifacts.
-* Business Data Model: `REPLACE_DUPLICATES`
-* BDM access control: `REPLACE_DUPLICATES`
-* Layouts: `REPLACE_DUPLICATES`
-* Pages: `REPLACE_DUPLICATES`
-* Profiles: `REPLACE_DUPLICATES`
-* REST API extensions: `REPLACE_DUPLICATES`
-* Themes: `REPLACE_DUPLICATES`
-
-</div>
+As recommended for production here we neither deploy the organization file nor the profiles (as we know they are already deployed and we want to keep the data available in production).
+Processes will not be deleted and re-installed, thanks to the IGNORE_DUPLICATES policy that will only install new processes and let existing ones untouched.
 
 
-### Caveats
-
-* `FAIL` policy implies that the deployment stops right after the failure meaning that subsequent elements of the deployment are not deployed at all.
-* Prior to deploying a Business Data Model, [the Bonita tenant is paused](https://documentation.bonitasoft.com/bonita/${bonitaDocVersion}/pause-and-resume-bpm-services). So a downtime of the tenant occurs. The tenant is resumed after the deployment of the BDM.
-* REST API extension authorizations are not configured as part of the deployment process. They have to be configured while provisioning the Bonita platform. See [how to configure REST API authorization](how_to_configure_rest_api_authorization.md) with BCD.
-
-
-## How to use
+### How to use
 
 Use the `bcd livingapp deploy` command to deploy Living App artifacts:
 ```
@@ -197,44 +272,10 @@ bcd -s <scenario> livingapp deploy -p <path>
 ```
 where:
 * **\<scenario>** is the path to the BCD scenario which defines the target Bonita stack. Artifacts will be deployed using tenant credentials defined by this scenario (`bonita_tenant_login` and `bonita_tenant_password` variables).
-* **\<path>** is the path to the Application Archive to deploy (file or directory).
+* **\<path>** is the path to the Application Archive to deploy (directory containing the deploy.json).
 
 You can add a **--debug** option to enable debug mode and increase verbosity.
 
 ::: info
 Refer to the [BCD Command-line reference](bcd_cli.md) for a complete list of available options for the `bcd livingapp deploy` command.
 :::
-
-
-**Complete example:**
-
-Here is how to deploy artifacts of the [Bonita Vacation Management example Living App](https://github.com/bonitasoft/bonita-vacation-management-example).
-
-Assuming that:
-* artifacts have been built and that a `bonita-vacation-management-example_20180329162901.zip` Application Archive zip file has been generated in the `bonita-vacation-management-example/target` directory
-* a Bonita stack is up and running as defined in a `scenarios/euwest1_performance.yml` scenario file
-
-_In the BCD controller container_:
-```
-bonita@bcd-controller:~$ cd bonita-continuous-delivery
-
-bonita@bcd-controller:~/bonita-continuous-delivery$ ls -nh bonita-vacation-management-example/target
-total 8,1M
-drwxr-xr-x 9 1000 1000 4,0K Mar 29 16:29 bonita-vacation-management-example
--rw-r--r-- 1 1000 1000 8,1M Mar 29 16:29 bonita-vacation-management-example_20180329162901.zip
-drwxr-xr-x 3 1000 1000 4,0K Mar 29 16:29 bpmn
-drwxr-xr-x 2 1000 1000 4,0K Mar 29 16:29 generated-jars
-drwxr-xr-x 3 1000 1000 4,0K Mar 29 16:29 ui-designer
-```
-
-Then artifacts can be deployed using the generated zip file as follows:
-
-```
-bonita@bcd-controller:~/bonita-continuous-delivery$ bcd -s scenarios/euwest1_performance.yml --yes livingapp deploy -p bonita-vacation-management-example/target/bonita-vacation-management-example_20180329162901.zip
-```
-
-Artifacts can also be deployed providing the Application Archive directory as follows:
-
-```
-bonita@bcd-controller:~/bonita-continuous-delivery$ bcd -s scenarios/euwest1_performance.yml --yes livingapp deploy -p bonita-vacation-management-example/target/bonita-vacation-management-example
-```
