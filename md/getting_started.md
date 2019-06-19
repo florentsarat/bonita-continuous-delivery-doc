@@ -16,6 +16,19 @@ Then a **BCD Controller container** has to be started on the control host, ie. t
 
 Follow these installation steps on your control host.
 
+<script type="text/javascript">
+function loadCSS(filename){ 
+    var file = document.createElement("link");
+    file.setAttribute("rel", "stylesheet");
+    file.setAttribute("type", "text/css");
+    file.setAttribute("href", filename);
+    document.head.appendChild(file);
+}
+loadCSS("./assets/asciinema-player.css");
+</script>
+<asciinema-player src="./bcd/images/${varVersion}/bcd_getting-started.cast" speed="2" poster="data:text/plain,\e[2;3HGetting started with \e[1;34mBonita Continuous Delivery\u001b[0m controller." theme="monokai" title="Getting started with Bonita Continuous Delivery controller" cols="240" rows="32"></asciinema-player>
+<script src="./assets/asciinema-player.js"></script>
+
 1.  Make sure Docker is installed as described in the [Install Docker](https://docs.docker.com/engine/installation/) documentation.
 
 2.  Extract the `bonita-continuous-delivery_<version>.zip` archive:
