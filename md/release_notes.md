@@ -1,15 +1,11 @@
 # Release notes
 
 ## Breaking changes
-The following changes introduce incompatibility with BCD 3.2:
+The following changes introduce incompatibility with BCD 3.3:
 
-* BCD livingapp default deployment mode is now _Production_. To maintain the behavior of the deploy command prior to BCD 3.3.0 (aka. deployment for _Development_ environments), make sure to add the `--development-mode` option to your `livingapp deploy` commands.
+* BCD controller docker image is now based on Debian Buster instead of Alpine Linux.
 
-Example:
-
-```bash
-bcd -s <scenario> livingapp deploy -p <application_path> -c <configuration_path> --development-mode
-```
+If you use a custom controller image you may need to update it depending on your customization (ie: use apt package manager and not apk anymore)
 
 ## Limitations and known issues
 
@@ -19,20 +15,19 @@ bcd -s <scenario> livingapp deploy -p <application_path> -c <configuration_path>
   [WARNING]: Could not match supplied host pattern, ignoring: load_balancer
   ```
 
-## What's new in 3.3.0 (2020-03-09)
+## What's new in 4.0.0 (2020-09-01)
 
-* With release 3.3.0, BCD introduces deployment modes (_Development_ and _Production_) to manage artifacts deployment policies more easily.
+### Features
+* feat: upgrade to python3
+* feat: upgrade terraform (aws and azure)
+* feat: upgrade ansible
+* feat: upgrade to java 11
+* feat: upgrade bonita version to 7.11.0
+* feat: use Debian Buster(slim) as base distribution instead of Alpine Linux
 
-::: warning
-The default deployment policies are changing from the previous BCD versions. 
-The new deployment policies are more conservative:
-
-|                          |3.2.1 and previous versions                          |3.3.0 and later versions                                                 |
-|--------------------------|-----------------------------------------------------|-------------------------------------------------------|
-|Default deployment mode   |Development                                          |Production                                             |
-|Applications              |<code class="descclassname">REPLACE_DUPLICATES</code>|<code class="descclassname">REPLACE_DUPLICATES</code>  |
-|Organization              |<code class="descclassname">MERGE_DUPLICATES</code>  |<code class="descclassname">IGNORE_DUPLICATES</code>   |
-|Processes                 |<code class="descclassname">REPLACE_DUPLICATES</code>|<code class="descclassname">IGNORE_DUPLICATES</code>   |
-|Profiles                  |<code class="descclassname">REPLACE_DUPLICATES</code>|<code class="descclassname">IGNORE_IF_ANY_EXISTS</code>|
-
-:::
+### Bug fixes
+* fix: fix google captcha auth
+* fix: fix controller version in version command
+* fix: fix python interpreter path for ansible
+* fix: don't force a specific version of nodejs to build custom themes
+* fix: allow user to mount $HOME/.m2 to use maven settings and cache
